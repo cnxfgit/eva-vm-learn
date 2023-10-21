@@ -1,6 +1,6 @@
 #include "src/vm/EvaVM.h"
 #include <iostream>
-#include "./Logger.h"
+#include "src/Logger.h"
 
 
 int main(int argc, char const *argv[])
