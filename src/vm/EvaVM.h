@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include "../bytecode/OpCode.h"
+#include "../Logger.h"
 
 #define READ_BYTE() *ip++
 
@@ -25,10 +26,14 @@ public:
     {
         for (;;)
         {
-            switch (READ_BYTE())
+            auto opcode = READ_BYTE();
+
+            switch (opcode)
             {
             case OP_HALT:
                 return;
+            default:
+                DIE << "Unknown opcode: " << std::hex << opcode;
             }
         }
     }
