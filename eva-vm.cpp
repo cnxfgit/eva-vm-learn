@@ -10,7 +10,7 @@ int main(int argc, char const *argv[])
     auto result = vm.exec(R"(
         42
     )");
-    log(AS_NUMBER(result));
+    log(AS_CPPSTRING(result));
 
     std::cout << "All done!\n";
 
