@@ -1,6 +1,7 @@
-#ifndef __OpCode_h
-#define __OpCode_h
+#ifndef OpCode_h
+#define OpCode_h
 
 #define OP_HALT 0x00
+#define OP_CONST 0x01
 
 #endif
