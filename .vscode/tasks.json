@@ -8,7 +8,6 @@
 			"args": [
 				"-fdiagnostics-color=always",
 				"-g",
-				"${workspaceFolder}/src/**/*",
 				"${workspaceFolder}/eva-vm.cpp",
 				"-o",
 				"${workspaceFolder}/a.out"

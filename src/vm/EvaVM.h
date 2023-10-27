@@ -4,9 +4,13 @@
 #include <string>
 #include <vector>
 #include <array>
+#include <memory>
 #include "../bytecode/OpCode.h"
 #include "../Logger.h"
 #include "./EvaValue.h"
+#include "../parser/EvaParser.h"
+
+using syntax::EvaParser;
 
 #define READ_BYTE() *ip++
 
@@ -25,7 +29,7 @@
 class EvaVM
 {
 public:
-    EvaVM()
+    EvaVM() : parser(std::make_unique<EvaParser>())
     {
     }
 
@@ -53,9 +57,10 @@ public:
 
     EvaValue exec(const std::string &program)
     {
-        constants.push_back(ALLOC_STRING("hello"));
-        constants.push_back(ALLOC_STRING(" world"));
-        code = {OP_CONST, 0, OP_CONST, 1, OP_ADD, OP_HALT};
+        auto ast = parser->parse(program);
+
+      
+        code = compiler->compile(ast);
         ip = &code[0];
         sp = &stack[0];
         return eval();
@@ -115,6 +120,8 @@ public:
             }
         }
     }
+
+    std::unique_ptr<EvaParser> parser;
 
     uint8_t *ip;
 
