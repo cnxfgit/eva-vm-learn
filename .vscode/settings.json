@@ -9,6 +9,10 @@
         "functional": "cpp",
         "tuple": "cpp",
         "type_traits": "cpp",
-        "utility": "cpp"
+        "utility": "cpp",
+        "typeinfo": "cpp",
+        "*.tcc": "cpp",
+        "ratio": "cpp",
+        "regex": "cpp"
     }
 }

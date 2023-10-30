@@ -9,12 +9,13 @@
 #include "../Logger.h"
 #include "./EvaValue.h"
 #include "../parser/EvaParser.h"
+#include "../compiler/EvaCompiler.h"
 
 using syntax::EvaParser;
 
 #define READ_BYTE() *ip++
 
-#define GET_CONST() constants[READ_BYTE()]
+#define GET_CONST() co->constants[READ_BYTE()]
 
 #define BINARY_OP(op)                \
     do                               \
@@ -29,7 +30,7 @@ using syntax::EvaParser;
 class EvaVM
 {
 public:
-    EvaVM() : parser(std::make_unique<EvaParser>())
+    EvaVM() : parser(std::make_unique<EvaParser>()), compiler(std::make_unique<EvaCompiler>())
     {
     }
 
@@ -60,8 +61,8 @@ public:
         auto ast = parser->parse(program);
 
       
-        code = compiler->compile(ast);
-        ip = &code[0];
+        co = compiler->compile(ast);
+        ip = &co->code[0];
         sp = &stack[0];
         return eval();
     }
@@ -123,6 +124,8 @@ public:
 
     std::unique_ptr<EvaParser> parser;
 
+    std::unique_ptr<EvaCompiler> compiler;
+
     uint8_t *ip;
 
     EvaValue *sp;
@@ -131,7 +134,7 @@ public:
 
     std::vector<EvaValue> constants;
 
-    std::vector<uint8_t> code;
+    CodeObject* co;
 };
 
 #endif
