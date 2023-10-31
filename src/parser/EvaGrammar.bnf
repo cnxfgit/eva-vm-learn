@@ -22,7 +22,7 @@
 
 \d+                 NUMBER
 
-[\w\-+*=<>/:,]+     SYMBOL
+[\w\-+*=!<>/]+      SYMBOL
 
 /lex
 

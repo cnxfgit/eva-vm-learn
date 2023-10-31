@@ -8,4 +8,6 @@
 #define OP_MUL 0x04
 #define OP_DIV 0x05
 
+#define OP_COMPARE 0x06
+
 #endif

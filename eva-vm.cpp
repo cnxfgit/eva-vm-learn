@@ -8,7 +8,7 @@ int main(int argc, char const *argv[])
     EvaVM vm;
 
     auto result = vm.exec(R"(
-        (+ ":" "123")
+        (!= 1 5)
     )");
     log(result);
 
