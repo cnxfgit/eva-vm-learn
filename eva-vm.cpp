@@ -8,9 +8,9 @@ int main(int argc, char const *argv[])
     EvaVM vm;
 
     auto result = vm.exec(R"(
-        "HELLO"
+        (+ ":" "123")
     )");
-    log(AS_CPPSTRING(result));
+    log(result);
 
     std::cout << "All done!\n";
 
