@@ -98,7 +98,35 @@ public:
                     emit(OP_COMPARE);
                     emit(compareOps_[op]);
                 }
-                
+                else if (op == "if")
+                {
+                    gen(exp.list[1]);
+                    emit(OP_JMP_IF_FALSE);
+
+                    emit(0);
+                    emit(0);
+
+                    auto elseJmpAddr = getOffset() - 2;
+
+                    gen(exp.list[2]);
+                    emit(OP_JMP);
+
+                    emit(0);
+                    emit(0);
+
+                    auto endAddr = getOffset() - 2;
+
+                    auto elseBranchAddr = getOffset();
+                    patchJmpAddress(elseJmpAddr, elseBranchAddr);
+
+                    if (exp.list.size() == 4)
+                    {
+                        gen(exp.list[3]);
+                    }
+
+                    auto endBranchAddr = getOffset();
+                    patchJmpAddress(endAddr, endBranchAddr);
+                }
             }
 
             break;
@@ -106,6 +134,11 @@ public:
     }
 
 private:
+    size_t getOffset()
+    {
+        return co->code.size();
+    }
+
     size_t numericConstIdx(double value)
     {
         ALLOC_CONST(IS_NUMBER, AS_NUMBER, NUMBER, value);
@@ -125,6 +158,17 @@ private:
     }
 
     void emit(uint8_t code) { co->code.push_back(code); }
+
+    void writeByteAtOffset(size_t offset, uint8_t vlaue)
+    {
+        co->code[offset] = vlaue;
+    }
+
+    void patchJmpAddress(size_t offset, uint16_t value)
+    {
+        writeByteAtOffset(offset, (value >> 8) & 0xff);
+        writeByteAtOffset(offset + 1, value & 0xff);
+    }
 
     CodeObject *co;
 

@@ -15,7 +15,11 @@ using syntax::EvaParser;
 
 #define READ_BYTE() *ip++
 
-#define GET_CONST() co->constants[READ_BYTE()]
+#define READ_SHORT() (ip += 2, (uint16_t)((ip[-2] << 8) | ip[-1]))
+
+#define TO_ADDRESS(index) (&co->code[index])
+
+#define GET_CONST() (co->constants[READ_BYTE()])
 
 #define STACK_LIMIT 512
 
@@ -160,6 +164,22 @@ public:
                     auto s2 = AS_STRING(op2);
                     COMPARE_VALUES(op, s1, s2);
                 }
+                break;
+            }
+            case OP_JMP_IF_FALSE:
+            {
+                auto cond = AS_BOOLEAN(pop());
+                auto address = READ_SHORT();
+                if (!cond)
+                {
+                    ip = TO_ADDRESS(address);
+                }
+
+                break;
+            }
+            case OP_JMP:
+            {
+                ip = TO_ADDRESS(READ_SHORT());
                 break;
             }
             default:
