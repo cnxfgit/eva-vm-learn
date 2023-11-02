@@ -2,6 +2,8 @@
 #define EvaValue_h
 
 #include <string>
+#include <vector>
+#include "../Logger.h"
 
 enum class EvaValueType
 {

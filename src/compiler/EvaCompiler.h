@@ -5,6 +5,7 @@
 #include "../parser/EvaParser.h"
 #include "../vm/EvaValue.h"
 #include "../bytecode/OpCode.h"
+#include "../disassembler/EvaDisassembler.h"
 
 #define ALLOC_CONST(tester, converter, allocator, value) \
     do                                                   \
@@ -34,7 +35,7 @@
 class EvaCompiler
 {
 public:
-    EvaCompiler()
+    EvaCompiler() : disassembler(std::make_unique<EvaDisassembler>())
     {
     }
 
@@ -133,7 +134,11 @@ public:
         }
     }
 
+    void disassenbleBytecode() { disassembler->disassemble(co); }
+
 private:
+    std::unique_ptr<EvaDisassembler> disassembler;
+
     size_t getOffset()
     {
         return co->code.size();

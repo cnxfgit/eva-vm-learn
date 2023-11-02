@@ -52,6 +52,7 @@
         "new": "cpp",
         "shared_mutex": "cpp",
         "stdexcept": "cpp",
-        "streambuf": "cpp"
+        "streambuf": "cpp",
+        "iomanip": "cpp"
     }
 }
