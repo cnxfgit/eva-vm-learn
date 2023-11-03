@@ -6,6 +6,7 @@
 #include "../vm/EvaValue.h"
 #include "../bytecode/OpCode.h"
 #include "../disassembler/EvaDisassembler.h"
+#include "../vm/Global.h"
 
 #define ALLOC_CONST(tester, converter, allocator, value) \
     do                                                   \
@@ -35,7 +36,8 @@
 class EvaCompiler
 {
 public:
-    EvaCompiler() : disassembler(std::make_unique<EvaDisassembler>())
+    EvaCompiler(std::shared_ptr<Global> global) : global(global),
+                                                  disassembler(std::make_unique<EvaDisassembler>(global))
     {
     }
 
@@ -69,6 +71,13 @@ public:
             }
             else
             {
+                if (!global->exists(exp.string))
+                {
+                    DIE << "[EvaCompiler]: Reference error: " << exp.string;
+                }
+
+                emit(OP_GET_GLOBAL);
+                emit(global->getGlobalIndex(exp.string));
             }
             break;
         case ExpType::LIST:
@@ -128,6 +137,29 @@ public:
                     auto endBranchAddr = getOffset();
                     patchJmpAddress(endAddr, endBranchAddr);
                 }
+                else if (op == "var")
+                {
+                    auto varName = exp.list[1].string;
+                    global->define(varName);
+                    gen(exp.list[2]);
+                    emit(OP_SET_GLOBAL);
+                    emit(global->getGlobalIndex(varName));
+                }
+                else if (op == "set")
+                {
+                    auto varName = exp.list[1].string;
+                    auto globalIndex = global->getGlobalIndex(varName);
+
+                    gen(exp.list[2]);
+
+                    if (globalIndex == -1)
+                    {
+                        DIE << "Reference error: " << varName << " is not defined.";
+                    }
+
+                    emit(OP_SET_GLOBAL);
+                    emit(globalIndex);
+                }
             }
 
             break;
@@ -137,6 +169,8 @@ public:
     void disassenbleBytecode() { disassembler->disassemble(co); }
 
 private:
+    std::shared_ptr<Global> global;
+
     std::unique_ptr<EvaDisassembler> disassembler;
 
     size_t getOffset()
