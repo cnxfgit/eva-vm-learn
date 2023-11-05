@@ -8,17 +8,18 @@ int main(int argc, char const *argv[])
     EvaVM vm;
 
     auto result = vm.exec(R"(
-      (var x 5)
-      (set x (+ x 10))
-      x
+      (var i 10)
+      (var count 0)
 
-      (begin 
-        (var x 100)
-        (begin (var x 200) x)
-        x
+      (while 
+        (> i 0)
+        (begin
+          (set i ( - i 1))
+          (set count ( + count 1))
+        )
       )
-
-      x
+      count
+      
     )");
     std::cout << "\n";
     log(result);

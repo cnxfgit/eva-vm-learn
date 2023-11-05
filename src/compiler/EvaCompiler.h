@@ -117,6 +117,26 @@ class EvaCompiler {
 
                         auto endBranchAddr = getOffset();
                         patchJmpAddress(endAddr, endBranchAddr);
+                    } else if (op == "while") {
+                        auto loopStartAddr = getOffset();
+                        gen(exp.list[1]);
+                        emit(OP_JMP_IF_FALSE);
+
+                        emit(0);
+                        emit(0);
+
+                        auto loopEndJmpAddr = getOffset() - 2;
+                        gen(exp.list[2]);
+
+                        emit(OP_JMP);
+                        emit(0);
+                        emit(0);
+
+                        patchJmpAddress(getOffset() - 2, loopStartAddr);
+
+                        auto loopEndAddr = getOffset() + 1;
+                        patchJmpAddress(loopEndJmpAddr, loopEndAddr);
+
                     } else if (op == "var") {
                         auto varName = exp.list[1].string;
                         gen(exp.list[2]);
