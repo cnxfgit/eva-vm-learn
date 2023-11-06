@@ -3,6 +3,7 @@
 
 #include "../Logger.h"
 #include "EvaValue.h"
+#include <functional>
 
 struct GlobalVar {
     std::string name;
@@ -26,6 +27,15 @@ struct Global {
             return;
         }
         globals.push_back({name, NUMBER(0)});
+    }
+
+    void addNativeFunction(const std::string& name,
+                           std::function<void()> fn,
+                           size_t arity) {
+        if (exists(name)) {
+            return;
+        }
+        globals.push_back({name, ALLOC_NATIVE(fn, name, arity)});
     }
 
     void addConst(const std::string& name, double value) {

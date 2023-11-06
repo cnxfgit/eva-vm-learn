@@ -182,6 +182,15 @@ class EvaCompiler {
                         }
 
                         scopeExit();
+                    } else {
+                        gen(exp.list[0]);
+
+                        for (auto i = 1; i < exp.list.size(); i++) {
+                            gen(exp.list[i]);
+                        }
+
+                        emit(OP_CALL);
+                        emit(exp.list.size() - 1);
                     }
                 }
 

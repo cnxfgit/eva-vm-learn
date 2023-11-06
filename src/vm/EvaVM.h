@@ -112,6 +112,7 @@ class EvaVM {
 
     EvaValue eval() {
         for (;;) {
+            // dumpStack();
             auto opcode = READ_BYTE();
 
             switch (opcode) {
@@ -216,6 +217,19 @@ class EvaVM {
                     popN(count);
                     break;
                 }
+                case OP_CALL: {
+                    auto argsCount = READ_BYTE();
+                    auto fnValue = peek(argsCount);
+
+                    if (IS_NATIVE(fnValue)) {
+                        AS_NATIVE(fnValue)->function();
+                        auto result = pop();
+
+                        popN(argsCount + 1);
+                        push(result);
+                        break;
+                    }
+                }
                 default:
                     DIE << "Unknown opcode: " << std::hex << opcode;
             }
@@ -223,8 +237,22 @@ class EvaVM {
     }
 
     void setGlobalVariables() {
+        global->addNativeFunction(
+            "square",
+            [&]() {
+                auto x = AS_NUMBER(peek(0));
+                push(NUMBER(x * x));
+            },
+            1);
+        global->addNativeFunction(
+            "sum",
+            [&]() {
+                auto v2 = AS_NUMBER(peek(0));
+                auto v1 = AS_NUMBER(peek(1));
+                push(NUMBER(v1 + v2));
+            },
+            2);
         global->addConst("VERSION", 1);
-        global->addConst("y", 20);
     }
 
     std::shared_ptr<Global> global;
@@ -244,6 +272,18 @@ class EvaVM {
     std::vector<EvaValue> constants;
 
     CodeObject* co;
+
+    void dumpStack() {
+        std::cout << "\n------------- Stack -------------\n";
+        if (sp == stack.begin()) {
+            std::cout << "(empty)";
+        }
+        auto csp = sp - 1;
+        while (csp >= stack.begin()) {
+            std::cout << *csp-- << "\n";
+        }
+        std::cout << "\n";
+    }
 };
 
 #endif
