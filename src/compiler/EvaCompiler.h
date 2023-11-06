@@ -18,7 +18,7 @@
                 return i;                                 \
             }                                             \
         }                                                 \
-        co->constants.push_back(allocator(value));        \
+        co->addConst(allocator(value));                   \
     } while (false)
 
 #define GEN_BINARY_OP(op) \
@@ -35,7 +35,7 @@ class EvaCompiler {
           disassembler(std::make_unique<EvaDisassembler>(global)) {}
 
     CodeObject* compile(const Exp& exp) {
-        co = AS_CODE(ALLOC_CODE("main"));
+        co = AS_CODE(createCodeObjectValue("main"));
         gen(exp);
         emit(OP_HALT);
         return co;
@@ -182,6 +182,47 @@ class EvaCompiler {
                         }
 
                         scopeExit();
+                    } else if (op == "def") {
+                        auto fnName = exp.list[1].string;
+                        auto params = exp.list[2].list;
+                        auto arity = params.size();
+                        auto body = exp.list[3];
+
+                        auto prevCo = co;
+                        auto coValue = createCodeObjectValue(fnName, arity);
+                        co = AS_CODE(coValue);
+
+                        prevCo->constants.push_back(coValue);
+                        co->addLocal(fnName);
+                        for (auto i = 0; i < arity; i++) {
+                            auto argName = exp.list[2].list[i].string;
+                            co->addLocal(argName);
+                        }
+
+                        gen(body);
+                        if (!isBlock(body)) {
+                            emit(OP_SCOPE_EXIT);
+                            emit(arity + 1);
+                        }
+
+                        emit(OP_RETURN);
+
+                        auto fn = ALLOC_FUNCTION(co);
+                        co = prevCo;
+                        co->constants.push_back(fn);
+                        emit(OP_CONST);
+                        emit(co->constants.size() - 1);
+
+                        if (isGlobalScope()) {
+                            global->define(fnName);
+                            emit(OP_SET_GLOBAL);
+                            emit(global->getGlobalIndex(fnName));
+                        } else {
+                            co->addLocal(fnName);
+                            emit(OP_SET_LOCAL);
+                            emit(co->getLocalIndex(fnName));
+                        }
+
                     } else {
                         gen(exp.list[0]);
 
@@ -198,7 +239,11 @@ class EvaCompiler {
         }
     }
 
-    void disassenbleBytecode() { disassembler->disassemble(co); }
+    void disassenbleBytecode() {
+        for (auto& co_ : codeObjects_) {
+            disassembler->disassemble(co_);
+        }
+    }
 
    private:
     std::shared_ptr<Global> global;
@@ -207,21 +252,37 @@ class EvaCompiler {
 
     bool isGlobalScope() { return co->name == "main" && co->scopeLevel == 1; }
 
+    bool isFunctionBody() { return co->name != "main" && co->scopeLevel == 1; }
+
     bool isDeclaration(const Exp& exp) { return isVarDeclaration(exp); }
 
     bool isVarDeclaration(const Exp& exp) { return isTaggedList(exp, "var"); }
+
+    bool isBlock(const Exp& exp) { return isTaggedList(exp, "begin"); }
 
     bool isTaggedList(const Exp& exp, const std::string& tag) {
         return exp.type == ExpType::LIST &&
                exp.list[0].type == ExpType::SYMBOL && exp.list[0].string == tag;
     }
 
+    EvaValue createCodeObjectValue(const std::string& name, size_t arity = 0) {
+        auto coValue = ALLOC_CODE(name, arity);
+        auto co = AS_CODE(coValue);
+        codeObjects_.push_back(co);
+        return coValue;
+    }
+
     void scopeEnter() { co->scopeLevel++; }
 
     void scopeExit() {
         auto varsCount = getVarsCountOnScopeExit();
-        if (varsCount > 0) {
+        if (varsCount > 0 || co->arity > 0) {
             emit(OP_SCOPE_EXIT);
+
+            if (isFunctionBody()) {
+                varsCount += co->arity + 1;
+            }
+
             emit(varsCount);
         }
 
@@ -268,6 +329,8 @@ class EvaCompiler {
     }
 
     CodeObject* co;
+
+    std::vector<CodeObject*> codeObjects_;
 
     static std::map<std::string, uint8_t> compareOps_;
 };

@@ -1,9 +1,9 @@
 #ifndef EvaValue_h
 #define EvaValue_h
 
+#include <functional>
 #include <string>
 #include <vector>
-#include <functional>
 #include "../Logger.h"
 
 enum class EvaValueType {
@@ -12,11 +12,7 @@ enum class EvaValueType {
     OBJECT,
 };
 
-enum class ObjectType {
-    STRING,
-    CODE,
-    NATIVE,
-};
+enum class ObjectType { STRING, CODE, NATIVE, FUNCTION };
 
 struct Object {
     Object(ObjectType type) : type(type) {}
@@ -58,10 +54,11 @@ struct LocalVar {
 };
 
 struct CodeObject : public Object {
-    CodeObject(const std::string& name)
-        : Object(ObjectType::CODE), name(name) {}
+    CodeObject(const std::string& name, size_t arity)
+        : Object(ObjectType::CODE), name(name), arity(arity) {}
 
     std::string name;
+    size_t arity;
     std::vector<EvaValue> constants;
     std::vector<uint8_t> code;
     size_t scopeLevel = 0;
@@ -70,6 +67,8 @@ struct CodeObject : public Object {
     void addLocal(const std::string& name) {
         locals.push_back({name, scopeLevel});
     }
+
+    void addConst(const EvaValue& value) { constants.push_back(value); }
 
     int getLocalIndex(const std::string& name) {
         if (locals.size() > 0) {
@@ -81,6 +80,11 @@ struct CodeObject : public Object {
         }
         return -1;
     }
+};
+
+struct FunctionObject : public Object {
+    FunctionObject(CodeObject* co) : Object(ObjectType::FUNCTION), co(co) {}
+    CodeObject* co;
 };
 
 #define NUMBER(value)                         \
@@ -98,14 +102,19 @@ struct CodeObject : public Object {
         EvaValueType::OBJECT, .object = new StringObject(value) \
     }
 
-#define ALLOC_CODE(name)                                     \
-    EvaValue {                                               \
-        EvaValueType::OBJECT, .object = new CodeObject(name) \
+#define ALLOC_CODE(name, arity)                                     \
+    EvaValue {                                                      \
+        EvaValueType::OBJECT, .object = new CodeObject(name, arity) \
     }
 
 #define ALLOC_NATIVE(fn, name, arity)                                     \
     EvaValue {                                                            \
         EvaValueType::OBJECT, .object = new NativeObject(fn, name, arity) \
+    }
+
+#define ALLOC_FUNCTION(co)                                     \
+    EvaValue {                                                 \
+        EvaValueType::OBJECT, .object = new FunctionObject(co) \
     }
 
 #define AS_NUMBER(evaValue) ((double)(evaValue).number)
@@ -115,6 +124,7 @@ struct CodeObject : public Object {
 #define AS_CPPSTRING(evaValue) (AS_STRING(evaValue)->string)
 #define AS_CODE(evaValue) ((CodeObject*)(evaValue).object)
 #define AS_NATIVE(evaValue) ((NativeObject*)(evaValue).object)
+#define AS_FUNCTION(evaValue) ((FunctionObject*)(evaValue).object)
 
 #define IS_NUMBER(evaValue) ((evaValue).type == EvaValueType::NUMBER)
 #define IS_BOOLEAN(evaValue) ((evaValue).type == EvaValueType::BOOLEAN)
@@ -126,6 +136,7 @@ struct CodeObject : public Object {
 #define IS_STRING(evaValue) IS_OBJECT_TYPE(evaValue, ObjectType::STRING)
 #define IS_CODE(evaValue) IS_OBJECT_TYPE(evaValue, ObjectType::CODE)
 #define IS_NATIVE(evaValue) IS_OBJECT_TYPE(evaValue, ObjectType::NATIVE)
+#define IS_FUNCTION(evaValue) IS_OBJECT_TYPE(evaValue, ObjectType::FUNCTION)
 
 std::string evaValueToTypeString(const EvaValue& evaValue) {
     if (IS_NUMBER(evaValue)) {
@@ -138,6 +149,8 @@ std::string evaValueToTypeString(const EvaValue& evaValue) {
         return "CODE";
     } else if (IS_NATIVE(evaValue)) {
         return "NATIVE";
+    } else if (IS_FUNCTION(evaValue)) {
+        return "FUNCTION";
     } else {
         DIE << "evaValueToTypeString: unknown type " << (int)evaValue.type;
     }
@@ -155,6 +168,9 @@ std::string evaValueToConstantString(const EvaValue& evaValue) {
     } else if (IS_CODE(evaValue)) {
         auto code = AS_CODE(evaValue);
         ss << "code " << code << ": " << code->name;
+    } else if (IS_FUNCTION(evaValue)) {
+        auto fn = AS_FUNCTION(evaValue);
+        ss << fn->co->name << "/" << fn->co->arity;
     } else if (IS_NATIVE(evaValue)) {
         auto fn = AS_NATIVE(evaValue);
         ss << fn->name << "/" << fn->arity;
