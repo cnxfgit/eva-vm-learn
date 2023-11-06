@@ -18,9 +18,9 @@ using syntax::EvaParser;
 
 #define READ_SHORT() (ip += 2, (uint16_t)((ip[-2] << 8) | ip[-1]))
 
-#define TO_ADDRESS(index) (&co->code[index])
+#define TO_ADDRESS(index) (&fn->co->code[index])
 
-#define GET_CONST() (co->constants[READ_BYTE()])
+#define GET_CONST() (fn->co->constants[READ_BYTE()])
 
 #define STACK_LIMIT 512
 
@@ -56,6 +56,12 @@ using syntax::EvaParser;
         }                          \
         push(BOOLEAN(res));        \
     } while (false)
+
+struct Frame {
+    uint8_t* ra;
+    EvaValue* bp;
+    FunctionObject* fn;
+};
 
 class EvaVM {
    public:
@@ -102,8 +108,9 @@ class EvaVM {
     EvaValue exec(const std::string& program) {
         auto ast = parser->parse("(begin" + program + ")");
 
-        co = compiler->compile(ast);
-        ip = &co->code[0];
+        compiler->compile(ast);
+        fn = compiler->getMainFunction();
+        ip = &fn->co->code[0];
         sp = &stack[0];
         bp = sp;
         compiler->disassenbleBytecode();
@@ -229,6 +236,23 @@ class EvaVM {
                         push(result);
                         break;
                     }
+
+                    auto callee = AS_FUNCTION(fnValue);
+                    callStack.push({ip, bp, fn});
+                    fn = callee;
+                    bp = sp - argsCount - 1;
+                    ip = &callee->co->code[0];
+                    break;
+                }
+                case OP_RETURN: {
+                    auto callerFram = callStack.top();
+
+                    ip = callerFram.ra;
+                    bp = callerFram.bp;
+                    fn = callerFram.fn;
+
+                    callStack.pop();
+                    break;
                 }
                 default:
                     DIE << "Unknown opcode: " << std::hex << opcode;
@@ -269,9 +293,11 @@ class EvaVM {
 
     std::array<EvaValue, STACK_LIMIT> stack;
 
+    std::stack<Frame> callStack;
+
     std::vector<EvaValue> constants;
 
-    CodeObject* co;
+    FunctionObject* fn;
 
     void dumpStack() {
         std::cout << "\n------------- Stack -------------\n";

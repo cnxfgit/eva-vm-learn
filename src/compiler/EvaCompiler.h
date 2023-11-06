@@ -34,11 +34,11 @@ class EvaCompiler {
         : global(global),
           disassembler(std::make_unique<EvaDisassembler>(global)) {}
 
-    CodeObject* compile(const Exp& exp) {
+    void compile(const Exp& exp) {
         co = AS_CODE(createCodeObjectValue("main"));
+        main = AS_FUNCTION(ALLOC_FUNCTION(co));
         gen(exp);
         emit(OP_HALT);
-        return co;
     }
 
     void gen(const Exp& exp) {
@@ -245,6 +245,8 @@ class EvaCompiler {
         }
     }
 
+    FunctionObject* getMainFunction(){ return main; }
+
    private:
     std::shared_ptr<Global> global;
 
@@ -329,6 +331,8 @@ class EvaCompiler {
     }
 
     CodeObject* co;
+
+    FunctionObject* main;
 
     std::vector<CodeObject*> codeObjects_;
 
