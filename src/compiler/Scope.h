@@ -78,6 +78,28 @@ struct Scope {
         return parent->resolve(name, allocType);
     }
 
+    int getNameGetter(const std::string& name) {
+        switch (allocInfo[name]) {
+            case AllocType::GLOBAL:
+                return OP_GET_GLOBAL;
+            case AllocType::LOCAL:
+                return OP_GET_LOCAL;
+            case AllocType::CELL:
+                return OP_GET_CELL;
+        }
+    }
+
+    int getNameSetter(const std::string& name) {
+        switch (allocInfo[name]) {
+            case AllocType::GLOBAL:
+                return OP_SET_GLOBAL;
+            case AllocType::LOCAL:
+                return OP_SET_LOCAL;
+            case AllocType::CELL:
+                return OP_SET_CELL;
+        }
+    }
+
     ScopeType type;
 
     std::shared_ptr<Scope> parent;

@@ -8,9 +8,20 @@ int main(int argc, char const *argv[])
     EvaVM vm;
 
     auto result = vm.exec(R"(
-        (var x 1)
+        (var x 10)
         (def foo () x)
-        (foo)
+        (begin
+            (var y 100)
+            (var q 300)
+            q
+            (+ y x)
+            (begin
+                (var z 200)
+                z
+                (def bar () (+ y z))
+                (bar)
+            )
+        )
     )");
     // vm.dumpStack();
     std::cout << "\n";

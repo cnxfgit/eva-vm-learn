@@ -133,17 +133,20 @@ class EvaCompiler {
                     emit(booleanConstIdx(exp.string == "true" ? true : false));
                 } else {
                     auto varName = exp.string;
-                    auto localIndex = co->getLocalIndex(varName);
-                    if (localIndex != -1) {
-                        emit(OP_GET_LOCAL);
-                        emit(localIndex);
+
+                    auto opCodeGetter =
+                        scopeStack_.top()->getNameGetter(varName);
+                    emit(opCodeGetter);
+
+                    if (opCodeGetter == OP_GET_LOCAL) {
+                        emit(co->getLocalIndex(varName));
+                    } else if (opCodeGetter == OP_GET_CELL) {
+                        emit(co->getCellIndex(varName));
                     } else {
                         if (!global->exists(exp.string)) {
                             DIE << "[EvaCompiler]: Reference error: "
                                 << exp.string;
                         }
-
-                        emit(OP_GET_GLOBAL);
                         emit(global->getGlobalIndex(exp.string));
                     }
                 }
@@ -213,6 +216,8 @@ class EvaCompiler {
 
                     } else if (op == "var") {
                         auto varName = exp.list[1].string;
+                        auto opCodeSetter =
+                            scopeStack_.top()->getNameSetter(varName);
                         if (isLambda(exp.list[2])) {
                             compileFunction(exp.list[2], varName,
                                             exp.list[2].list[1],
@@ -221,35 +226,42 @@ class EvaCompiler {
                             gen(exp.list[2]);
                         }
 
-                        if (isGlobalScope()) {
+                        if (opCodeSetter == OP_SET_GLOBAL) {
                             global->define(varName);
                             emit(OP_SET_GLOBAL);
                             emit(global->getGlobalIndex(varName));
+                        } else if (opCodeSetter == OP_SET_CELL) {
+                            co->cellNames.push_back(varName);
+                            emit(OP_SET_CELL);
+                            emit(co->cellNames.size() - 1);
+                            emit(OP_POP);
                         } else {
                             co->addLocal(varName);
-                            // emit(OP_SET_LOCAL);
-                            // emit(co->getLocalIndex(varName));
                         }
                     } else if (op == "set") {
                         auto varName = exp.list[1].string;
+                        auto opCodeSetter =
+                            scopeStack_.top()->getNameSetter(varName);
                         gen(exp.list[2]);
 
-                        auto localIndex = co->getLocalIndex(varName);
-                        if (localIndex != -1) {
+                        if (opCodeSetter == OP_SET_LOCAL) {
                             emit(OP_SET_LOCAL);
-                            emit(localIndex);
+                            emit(co->getLocalIndex(varName));
+                        } else if (opCodeSetter == OP_SET_CELL) {
+                            emit(OP_SET_CELL);
+                            emit(co->getCellIndex(varName));
                         } else {
                             auto globalIndex = global->getGlobalIndex(varName);
                             if (globalIndex == -1) {
                                 DIE << "Reference error: " << varName
                                     << " is not defined.";
                             }
-
                             emit(OP_SET_GLOBAL);
                             emit(globalIndex);
                         }
                     } else if (op == "begin") {
-                        scopeEnter();
+                        scopeStack_.push(scopeInfo_.at(&exp));
+                        blockEnter();
 
                         for (auto i = 1; i < exp.list.size(); i++) {
                             bool isLast = i == exp.list.size() - 1;
@@ -260,7 +272,8 @@ class EvaCompiler {
                             }
                         }
 
-                        scopeExit();
+                        blockExit();
+                        scopeStack_.pop();
                     } else if (op == "def") {
                         auto fnName = exp.list[1].string;
                         compileFunction(exp, fnName, exp.list[2], exp.list[3]);
@@ -271,8 +284,6 @@ class EvaCompiler {
                             emit(global->getGlobalIndex(fnName));
                         } else {
                             co->addLocal(fnName);
-                            // emit(OP_SET_LOCAL);
-                            // emit(co->getLocalIndex(fnName));
                         }
 
                     } else if (op == "lambda") {
@@ -306,16 +317,34 @@ class EvaCompiler {
                          const std::string& fnName,
                          const Exp& params,
                          const Exp& body) {
+        auto scopeInfo = scopeInfo_.at(&exp);
+        scopeStack_.push(scopeInfo);
+
         auto arity = params.list.size();
         auto prevCo = co;
         auto coValue = createCodeObjectValue(fnName, arity);
         co = AS_CODE(coValue);
 
-        prevCo->constants.push_back(coValue);
+        co->freeCount = scopeInfo->free.size();
+
+        co->cellNames.reserve(scopeInfo->free.size() + scopeInfo->cells.size());
+
+        co->cellNames.insert(co->cellNames.end(), scopeInfo->free.begin(),
+                             scopeInfo->free.end());
+        co->cellNames.insert(co->cellNames.end(), scopeInfo->cells.begin(),
+                             scopeInfo->cells.end());
+
+        prevCo->addConst(coValue);
         co->addLocal(fnName);
         for (auto i = 0; i < arity; i++) {
             auto argName = params.list[i].string;
             co->addLocal(argName);
+
+            auto cellIndex = co->getCellIndex(argName);
+            if (cellIndex != -1) {
+                emit(OP_SET_CELL);
+                emit(cellIndex);
+            }
         }
 
         gen(body);
@@ -331,6 +360,8 @@ class EvaCompiler {
         co->constants.push_back(fn);
         emit(OP_CONST);
         emit(co->constants.size() - 1);
+
+        scopeStack_.pop();
     }
 
     bool isGlobalScope() { return co->name == "main" && co->scopeLevel == 1; }
@@ -357,10 +388,10 @@ class EvaCompiler {
         return coValue;
     }
 
-    void scopeEnter() { co->scopeLevel++; }
+    void blockEnter() { co->scopeLevel++; }
 
-    void scopeExit() {
-        auto varsCount = getVarsCountOnScopeExit();
+    void blockExit() {
+        auto varsCount = getVarsCountOnBlockExit();
         if (varsCount > 0 || co->arity > 0) {
             emit(OP_SCOPE_EXIT);
 
@@ -374,7 +405,7 @@ class EvaCompiler {
         co->scopeLevel--;
     }
 
-    size_t getVarsCountOnScopeExit() {
+    size_t getVarsCountOnBlockExit() {
         auto varsCount = 0;
         if (co->locals.size() > 0) {
             while (co->locals.back().scopeLevel == co->scopeLevel) {
@@ -414,6 +445,8 @@ class EvaCompiler {
     }
 
     std::map<const Exp*, std::shared_ptr<Scope>> scopeInfo_;
+
+    std::stack<std::shared_ptr<Scope>> scopeStack_;
 
     CodeObject* co;
 

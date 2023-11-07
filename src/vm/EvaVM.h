@@ -114,7 +114,9 @@ class EvaVM {
         sp = &stack[0];
         bp = sp;
         compiler->disassenbleBytecode();
-        return eval();
+        
+        return NUMBER(1);
+        //return eval();
     }
 
     EvaValue eval() {

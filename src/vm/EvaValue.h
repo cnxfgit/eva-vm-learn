@@ -63,6 +63,8 @@ struct CodeObject : public Object {
     std::vector<uint8_t> code;
     size_t scopeLevel = 0;
     std::vector<LocalVar> locals;
+    std::vector<std::string> cellNames;
+    size_t freeCount = 0;
 
     void addLocal(const std::string& name) {
         locals.push_back({name, scopeLevel});
@@ -74,6 +76,17 @@ struct CodeObject : public Object {
         if (locals.size() > 0) {
             for (auto i = (int)locals.size() - 1; i >= 0; i--) {
                 if (locals[i].name == name) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
+    int getCellIndex(const std::string& name) {
+        if (cellNames.size() > 0) {
+            for (auto i = (int)cellNames.size() - 1; i >= 0; i--) {
+                if (cellNames[i] == name) {
                     return i;
                 }
             }
