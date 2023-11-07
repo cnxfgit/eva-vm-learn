@@ -10,7 +10,8 @@
 				"-g",
 				"${workspaceFolder}/eva-vm.cpp",
 				"-o",
-				"${workspaceFolder}/a.out"
+				"${workspaceFolder}/a.out",
+				"-std=c++17"
 			],
 			"options": {
 				"cwd": "${fileDirname}"

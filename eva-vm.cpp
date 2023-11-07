@@ -9,12 +9,8 @@ int main(int argc, char const *argv[])
 
     auto result = vm.exec(R"(
         (var x 1)
-        (var y (+ x 1))
-        (begin
-            (var a 10) 
-            (var b 20)
-            (+ a b)
-        )
+        (def foo () x)
+        (foo)
     )");
     // vm.dumpStack();
     std::cout << "\n";

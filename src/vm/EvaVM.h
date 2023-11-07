@@ -192,7 +192,7 @@ class EvaVM {
                 }
                 case OP_SET_GLOBAL: {
                     auto globalIndex = READ_BYTE();
-                    auto value = pop();
+                    auto value = peek(0);
                     global->set(globalIndex, value);
                     break;
                 }
@@ -210,7 +210,7 @@ class EvaVM {
                 }
                 case OP_SET_LOCAL: {
                     auto localIndex = READ_BYTE();
-                    auto value = peek(0);
+                    auto value = pop();
                     if (localIndex < 0 || localIndex >= stack.size()) {
                         DIE << "OP_GET_LOCAL: invalid variable index: "
                             << (int)localIndex;

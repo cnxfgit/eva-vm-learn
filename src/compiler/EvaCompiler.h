@@ -7,6 +7,7 @@
 #include "../parser/EvaParser.h"
 #include "../vm/EvaValue.h"
 #include "../vm/Global.h"
+#include "Scope.h"
 
 #define ALLOC_CONST(tester, converter, allocator, value)  \
     do {                                                  \
@@ -47,8 +48,71 @@ class EvaCompiler {
     void compile(const Exp& exp) {
         co = AS_CODE(createCodeObjectValue("main"));
         main = AS_FUNCTION(ALLOC_FUNCTION(co));
+
+        analyze(exp, nullptr);
+
         gen(exp);
         emit(OP_HALT);
+    }
+
+    void analyze(const Exp& exp, std::shared_ptr<Scope> scope) {
+        if (exp.type == ExpType::SYMBOL) {
+            if (exp.string == "true" || exp.string == "false") {
+            } else {
+                scope->maybePromote(exp.string);
+            }
+
+        } else if (exp.type == ExpType::LIST) {
+            auto tag = exp.list[0];
+            if (tag.type == ExpType::SYMBOL) {
+                auto op = tag.string;
+                if (op == "begin") {
+                    auto newScope = std::make_shared<Scope>(
+                        scope == nullptr ? ScopeType::GLOBAL : ScopeType::BLOCK,
+                        scope);
+                    scopeInfo_[&exp] = newScope;
+                    for (auto i = 1; i < exp.list.size(); i++) {
+                        analyze(exp.list[i], newScope);
+                    }
+                } else if (op == "var") {
+                    scope->addLocal(exp.list[1].string);
+                    analyze(exp.list[2], scope);
+                } else if (op == "def") {
+                    auto fnName = exp.list[1].string;
+                    scope->addLocal(fnName);
+                    auto newScope =
+                        std::make_shared<Scope>(ScopeType::FUNCTION, scope);
+                    scopeInfo_[&exp] = newScope;
+                    auto arity = exp.list[2].list.size();
+
+                    for (auto i = 0; i < arity; i++) {
+                        newScope->addLocal(exp.list[2].list[i].string);
+                    }
+
+                    analyze(exp.list[3], newScope);
+                } else if (op == "lambda") {
+                    auto newScope =
+                        std::make_shared<Scope>(ScopeType::FUNCTION, scope);
+                    scopeInfo_[&exp] = newScope;
+
+                    auto arity = exp.list[1].list.size();
+
+                    for (auto i = 0; i < arity; i++) {
+                        newScope->addLocal(exp.list[1].list[i].string);
+                    }
+
+                    analyze(exp.list[2], scope);
+                } else {
+                    for (auto i = 1; i < exp.list.size(); i++) {
+                        analyze(exp.list[i], scope);
+                    }
+                }
+            } else {
+                for (auto i = 0; i < exp.list.size(); i++) {
+                    analyze(exp.list[i], scope);
+                }
+            }
+        }
     }
 
     void gen(const Exp& exp) {
@@ -348,6 +412,8 @@ class EvaCompiler {
         writeByteAtOffset(offset, (value >> 8) & 0xff);
         writeByteAtOffset(offset + 1, value & 0xff);
     }
+
+    std::map<const Exp*, std::shared_ptr<Scope>> scopeInfo_;
 
     CodeObject* co;
 
