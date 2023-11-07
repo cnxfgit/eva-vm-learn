@@ -163,8 +163,8 @@ class EvaCompiler {
                             emit(global->getGlobalIndex(varName));
                         } else {
                             co->addLocal(varName);
-                            emit(OP_SET_LOCAL);
-                            emit(co->getLocalIndex(varName));
+                            // emit(OP_SET_LOCAL);
+                            // emit(co->getLocalIndex(varName));
                         }
                     } else if (op == "set") {
                         auto varName = exp.list[1].string;
@@ -189,11 +189,9 @@ class EvaCompiler {
 
                         for (auto i = 1; i < exp.list.size(); i++) {
                             bool isLast = i == exp.list.size() - 1;
-                            auto isLocalDeclaration =
-                                isDeclaration(exp.list[i]) && !isGlobalScope();
+                            auto isDecl = isDeclaration(exp.list[i]);
                             gen(exp.list[i]);
-
-                            if (!isLast && !isLocalDeclaration) {
+                            if (!isLast && !isDecl) {
                                 emit(OP_POP);
                             }
                         }
@@ -209,8 +207,8 @@ class EvaCompiler {
                             emit(global->getGlobalIndex(fnName));
                         } else {
                             co->addLocal(fnName);
-                            emit(OP_SET_LOCAL);
-                            emit(co->getLocalIndex(fnName));
+                            // emit(OP_SET_LOCAL);
+                            // emit(co->getLocalIndex(fnName));
                         }
 
                     } else if (op == "lambda") {

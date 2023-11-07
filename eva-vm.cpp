@@ -8,9 +8,13 @@ int main(int argc, char const *argv[])
     EvaVM vm;
 
     auto result = vm.exec(R"(
-        (def square (x) (* x x))
-        (var square (lambda (x) (* x x)))
-        (square 3)
+        (var x 1)
+        (var y (+ x 1))
+        (begin
+            (var a 10) 
+            (var b 20)
+            (+ a b)
+        )
     )");
     // vm.dumpStack();
     std::cout << "\n";
