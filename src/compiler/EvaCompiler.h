@@ -28,6 +28,16 @@
         emit(op);         \
     } while (false)
 
+#define FUNCTION_CALL(exp)                           \
+    do {                                             \
+        gen(exp.list[0]);                            \
+        for (auto i = 1; i < exp.list.size(); i++) { \
+            gen(exp.list[i]);                        \
+        }                                            \
+        emit(OP_CALL);                               \
+        emit(exp.list.size() - 1);                   \
+    } while (false)
+
 class EvaCompiler {
    public:
     EvaCompiler(std::shared_ptr<Global> global)
@@ -139,7 +149,14 @@ class EvaCompiler {
 
                     } else if (op == "var") {
                         auto varName = exp.list[1].string;
-                        gen(exp.list[2]);
+                        if (isLambda(exp.list[2])) {
+                            compileFunction(exp.list[2], varName,
+                                            exp.list[2].list[1],
+                                            exp.list[2].list[2]);
+                        } else {
+                            gen(exp.list[2]);
+                        }
+
                         if (isGlobalScope()) {
                             global->define(varName);
                             emit(OP_SET_GLOBAL);
@@ -184,34 +201,7 @@ class EvaCompiler {
                         scopeExit();
                     } else if (op == "def") {
                         auto fnName = exp.list[1].string;
-                        auto params = exp.list[2].list;
-                        auto arity = params.size();
-                        auto body = exp.list[3];
-
-                        auto prevCo = co;
-                        auto coValue = createCodeObjectValue(fnName, arity);
-                        co = AS_CODE(coValue);
-
-                        prevCo->constants.push_back(coValue);
-                        co->addLocal(fnName);
-                        for (auto i = 0; i < arity; i++) {
-                            auto argName = exp.list[2].list[i].string;
-                            co->addLocal(argName);
-                        }
-
-                        gen(body);
-                        if (!isBlock(body)) {
-                            emit(OP_SCOPE_EXIT);
-                            emit(arity + 1);
-                        }
-
-                        emit(OP_RETURN);
-
-                        auto fn = ALLOC_FUNCTION(co);
-                        co = prevCo;
-                        co->constants.push_back(fn);
-                        emit(OP_CONST);
-                        emit(co->constants.size() - 1);
+                        compileFunction(exp, fnName, exp.list[2], exp.list[3]);
 
                         if (isGlobalScope()) {
                             global->define(fnName);
@@ -223,16 +213,14 @@ class EvaCompiler {
                             emit(co->getLocalIndex(fnName));
                         }
 
+                    } else if (op == "lambda") {
+                        compileFunction(exp, "lambda", exp.list[1],
+                                        exp.list[2]);
                     } else {
-                        gen(exp.list[0]);
-
-                        for (auto i = 1; i < exp.list.size(); i++) {
-                            gen(exp.list[i]);
-                        }
-
-                        emit(OP_CALL);
-                        emit(exp.list.size() - 1);
+                        FUNCTION_CALL(exp);
                     }
+                } else {
+                    FUNCTION_CALL(exp);
                 }
 
                 break;
@@ -245,12 +233,43 @@ class EvaCompiler {
         }
     }
 
-    FunctionObject* getMainFunction(){ return main; }
+    FunctionObject* getMainFunction() { return main; }
 
    private:
     std::shared_ptr<Global> global;
 
     std::unique_ptr<EvaDisassembler> disassembler;
+
+    void compileFunction(const Exp& exp,
+                         const std::string& fnName,
+                         const Exp& params,
+                         const Exp& body) {
+        auto arity = params.list.size();
+        auto prevCo = co;
+        auto coValue = createCodeObjectValue(fnName, arity);
+        co = AS_CODE(coValue);
+
+        prevCo->constants.push_back(coValue);
+        co->addLocal(fnName);
+        for (auto i = 0; i < arity; i++) {
+            auto argName = params.list[i].string;
+            co->addLocal(argName);
+        }
+
+        gen(body);
+        if (!isBlock(body)) {
+            emit(OP_SCOPE_EXIT);
+            emit(arity + 1);
+        }
+
+        emit(OP_RETURN);
+
+        auto fn = ALLOC_FUNCTION(co);
+        co = prevCo;
+        co->constants.push_back(fn);
+        emit(OP_CONST);
+        emit(co->constants.size() - 1);
+    }
 
     bool isGlobalScope() { return co->name == "main" && co->scopeLevel == 1; }
 
@@ -259,6 +278,8 @@ class EvaCompiler {
     bool isDeclaration(const Exp& exp) { return isVarDeclaration(exp); }
 
     bool isVarDeclaration(const Exp& exp) { return isTaggedList(exp, "var"); }
+
+    bool isLambda(const Exp& exp) { return isTaggedList(exp, "lambda"); }
 
     bool isBlock(const Exp& exp) { return isTaggedList(exp, "begin"); }
 
